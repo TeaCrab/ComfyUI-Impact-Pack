@@ -11,7 +11,7 @@ from impact import utils
 
 wildcard_lock = threading.Lock()
 wildcard_dict = {}
-
+RE_WildCardQuantifier = re.compile(r"(?P<quantifier>\d+)#__(?P<keyword>[\w.\-+/*\\]+)__", re.IGNORECASE)
 
 def get_wildcard_list():
     with wildcard_lock:
@@ -192,6 +192,16 @@ def process(text, seed=None):
     stop_unwrap = False
     while not stop_unwrap and replace_depth > 1:
         replace_depth -= 1  # prevent infinite loop
+
+        # Added the ability to multiply __wildcard__ as options for $$ syntax
+        # Example: {5$$, $$20#__test__}
+        # Will become {5$$, $$__test__|__test__|...x20}
+        option_quantifier = [e.groupdict() for e in RE_WildCardQuantifier.finditer(text)]
+        for match in option_quantifier:
+            keyword = match['keyword'].lower()
+            quantifier = int(match['quantifier']) if match['quantifier'] else 1
+            replacement = '__|__'.join([keyword,] * quantifier)
+            text = RE_WildCardQuantifier.sub(f"__{replacement}__", text)
 
         # pass1: replace options
         pass1, is_replaced1 = replace_options(text)
